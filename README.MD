@@ -14,5 +14,5 @@ https://drive.google.com/drive/folders/1qpYdOcQBPMay6_VnAu8_jhxQTr5dPh-8?usp=sha
 
 Was in Zukunft zu tun wäre:
  - Einbindung der aktuellen VPPlib und Möglichkeiten finden, dass das Environment nicht auf eigene Funktionen angewiesen ist. Als native Einbindung in die VPPlib ist das Environment noch nicht geeignet. Das ist aber durchaus machbar.
- - Bessere Neuronale Netzwerk Architekturen finden, die in der Lage sind nicht nur die Reward, sondern auch den nächsten State vorherzusagen. Damit könnte man die "forecast_step" Funktion im Environment überflüssig machen und der Algorithmus wäre in der Lage nur aus den Beobachtungen eines Energiesystems zu lernen! Dann wäre es nicht mehr zwingend nötig, das virtuelle Kraftwerk vorher zu modellieren!
+ - Bessere Neuronale Netzwerk Architekturen finden, die in der Lage sind nicht nur die Reward, sondern auch den nächsten State vorherzusagen. Damit könnte man das Environment nahezu überflüssig machen und der Algorithmus wäre in der Lage nur aus den Beobachtungen eines Energiesystems zu lernen! Dann wäre es nicht mehr zwingend nötig, das virtuelle Kraftwerk vorher zu modellieren!
  - Wir verwenden noch "perfect foresight". Ich habe aber ein paar Ideen, auch statistische Faktoren, bspw. über die erwartete PV-Leistung zu integrieren.
