@@ -15,10 +15,10 @@ class Config:
 
         # main configs
         self.episodes = 10
-        self.epochs = 10
-        self.training_epochs = 500
-        self.training_batch_size = 10000
-        self.search_depth = 500
+        self.epochs = 1
+        self.training_epochs = 100
+        self.training_batch_size = 5000
+        self.simulations = 500
         self.environment_steps = 96
         self.asg = ActionSpaceGenerator()
         self.action_size = self.asg.action_size
@@ -28,7 +28,7 @@ class Config:
         self.units = 16
         self.obs_env = 3
         self.obs_det = 5
-        self.learning_rate = 0.01
+        self.learning_rate = 0.0001
         self.lr_decay = self.learning_rate/self.training_epochs
 
 
@@ -67,8 +67,8 @@ class SampleHistory:
 
 
 class MinMaxStats:
-    def __init__(self):
-        self.min_max = self.load()
+    def __init__(self, init=False):
+        self.min_max = self.load(init)
         self.min = self.min_max["min"]
         self.max = self.min_max["max"]
         self.high_score = self.min_max["high_score"]
@@ -81,10 +81,12 @@ class MinMaxStats:
             self.save()
         return self
 
-    def load(self):
+    def load(self, init):
         try:
             min_max = np.load("./checkpoints/min_max_stats.npy", allow_pickle=True).item()
         except:
+            min_max = {"min": -0.1, "max": 0.1, "high_score": -9999}
+        if init:
             min_max = {"min": -0.1, "max": 0.1, "high_score": -9999}
         return min_max
 
@@ -99,7 +101,9 @@ class MinMaxStats:
                 sum_val += values[i]
         return sum_val
 
-    def normalize(self, value):
+    def normalize(self, value, alt=True):
+        if alt:
+            return (((value - self.min) / (self.max - self.min)) * 2) - 1
         return (value - self.min) / (self.max - self.min)
 
 
@@ -138,11 +142,11 @@ class Generator:
         self.training_dict = {name: [] for name in self.dict_idx}
 
     def get_det_states(self, time):
-        state_el = self.env.el_loadprofile.iat[time-1]/10
-        state_th = self.env.th_loadprofile.iat[time-1, 0]/1.26
+        state_el = self.env.el_loadprofile.iat[time-1]
+        state_th = self.env.th_loadprofile.iat[time-1, 0]
         state_bev = self.env.bev.at_home.iat[time-1, 0]
-        state_pv = self.env.pv.timeseries.iat[time-1, 0] * 4
-        state_temp = (self.env.temperature.iat[time-1, 0] + 10.4) / 47
+        state_pv = self.env.pv.timeseries.iat[time-1, 0]
+        state_temp = self.env.temperature.iat[time-1, 0]
 
         det_states = np.array([state_el, state_th, state_bev, state_pv, state_temp])
 
@@ -157,37 +161,32 @@ class Generator:
         priors = dir_x * child_priors + (1 - dir_x) * np.random.dirichlet([dir_alpha] * len(child_priors))
         return priors/sum(priors)
 
-    def create_training_samples(self, greedy=False, random=False):
+    def create_training_samples(self, greedy=False):
         asg = ActionSpaceGenerator()
         action_size = asg.action_size
         actions = np.arange(action_size)
         tack = time.time()
         i = 0
-        while len(self.training_dict["env_states"]) < 500000:
+        while len(self.training_dict["env_states"]) < 50000:
             prior_state = self.env.reset()
             done = False
-            error = 0
-            while not done and not error == 3:
+            while not done:
                 det_state = self.get_det_states(self.env.time)
-                #inp = self.get_input(prior_state, det_state)
-                #_, rewards = self.net.predict(inp)
-              #  if greedy:
-               #     action = np.argmax(rewards)
-               # elif random:
-                action = np.random.randint(180)
-                #else:
-                 #   rewards = np.clip(np.squeeze(rewards), -1, 10) + 1
-                  #  try:
-                   #     priors = self.add_exploration_noise(rewards/np.sum(rewards))
-                    #    action = np.random.choice(actions, p=priors)  # np.random.randint(action_size)
-                    #except:
-                     #   action = np.random.randint(180)
+                inp = self.get_input(prior_state, det_state)
+                _, rewards = self.net.predict(inp)
+                if greedy:
+                    action = np.argmax(rewards)
+                else:
+                    rewards = np.clip(np.squeeze(rewards), 0, 10)
+                    try:
+                        priors = self.add_exploration_noise(rewards**0.5/np.sum(rewards**0.5))
+                        action = np.random.choice(actions, p=priors)  # np.random.randint(action_size)
+                    except:
+                        action = np.random.randint(180)
                 state, reward, done, _ = self.env.step(action)
                 self.append(prior_state, det_state, action, state, reward)
                 prior_state = state
                 i += 1
-                if done:
-                  error += 5
                 if not i % 1000:
                     tick = time.time()
                     print(f"Time per sample {np.round(tick - tack, 4)/i}s")

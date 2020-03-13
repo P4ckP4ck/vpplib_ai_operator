@@ -15,11 +15,10 @@ class Trainer:
         self.config = config
         self.episodes = config.episodes
         self.training_epochs = config.training_epochs
-        self.search_depth = config.search_depth
+        self.simulations = config.simulations
         self.environment_steps = config.environment_steps
         self.batch_size = config.batch_size
         self.nets = nets
-        self.test_nets = nets
         self.env = env
         self.action_size = config.action_size
 
@@ -45,7 +44,7 @@ class Trainer:
             done = False
             while not done:
                 uct_node = uct_search(StateNode(state, env, self.nets, env.time, action_size=self.action_size),
-                                      self.search_depth,
+                                      self.simulations,
                                       use_dirichlet=False,
                                       action_size=self.action_size)
                 sum_visits = sum(uct_node.child_number_visits)
@@ -135,38 +134,57 @@ class Trainer:
 
     def evaluate_current_iteration(self, eval_time=20000, env_steps=96, log_file="results_log.csv"):
         """
-        This function is used to evaluate if the algorithm made any progress in understanding the environment
+
         :param high_score: a variable to determine if the weights of the current network get saved
+        :param forecast: a list of forecast
         :param LOGFILE: flag, determines if an additional log_file is created
+        :param PLOT: flag, determines if the results get plotted via matplotlib
         :return: the current highscore
         """
         test_env = self.env
         state = test_env.static_reset(eval_time)
         cum_r = 0
         actions_taken = np.zeros(self.action_size)
-        min_max = MinMaxStats()
+        min_max = MinMaxStats(init=True)
         for _ in tqdm(range(env_steps)):
-            uct_node = uct_search(StateNode(state, test_env, self.nets, test_env.time, self.config),
-                                  self.search_depth,
+            prior_state = state
+            uct_node = uct_search(StateNode(state, test_env, self.nets, test_env.time, self.config, test_env.variables),
+                                  self.simulations,
                                   self.config,
                                   use_dirichlet=False)
+
             action = np.argmax(uct_node.child_number_visits)
+
             state, reward, done, info = test_env.step(action, EVALUATION=True)
+            if reward == -1:
+                # only for debugging!
+                print("Env state")
+                print(prior_state)
+                print("det state")
+                print(uct_node.state.state_det)
+                print("visits:")
+                print(uct_node.child_number_visits)
+                print("values:")
+                print(uct_node.child_total_value)
+                print("rewards:")
+                print(uct_node.state.rewards)
+                print("priors:")
+                print(uct_node.state.child_priors)
             cum_r += reward
             actions_taken[action] += 1
             print(cum_r)
-            print(action)
-            print(f"Actions: {actions_taken}\n"
-                  f"Policy:  {uct_node.child_number_visits/sum(uct_node.child_number_visits)}\n"
-                  f"Values:  {uct_node.child_total_value/uct_node.child_number_visits}")
+            # print(action)
+            # print(f"Actions: {actions_taken}\n"
+            #       f"Policy:  {uct_node.child_number_visits/sum(uct_node.child_number_visits)}\n"
+            #       f"Values:  {uct_node.child_total_value/uct_node.child_number_visits}")
         if cum_r > min_max.high_score:
             print(f"\n\n--=== New highscore achieved: {cum_r}! ===--\n\n")
             # forecast_network.save_weights("./networks/best_forecast_weights.h5")
-            self.test_nets.save_weights("./checkpoints/evaluator_weights.h5")
-            self.nets = self.test_nets
+            # self.test_nets.save_weights("./checkpoints/evaluator_weights.h5")
+#            self.nets = self.test_nets
             min_max.high_score = cum_r
             min_max.save()
         else:
             print(f"No new highscore, current performance: {cum_r}!")
         return cum_r, min_max.high_score
-        
+

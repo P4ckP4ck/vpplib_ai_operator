@@ -1,4 +1,4 @@
-from evaluator import evaluator_net
+from reward_func import evaluator_net
 from trainer import Trainer
 from ems_environment import ComplexEMS
 import helper as hlp
